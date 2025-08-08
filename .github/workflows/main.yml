@@ -3,19 +3,24 @@ name: SonarQube C/C++ Analysis
 on:
   push:
     branches:
-      - master # Or your default branch
+      - main # Or your default branch
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
   build_and_analyze:
+    name: Build and Analyze
     runs-on: ubuntu-latest
+    
+    env:
+      # Defines the output directory for the build-wrapper.
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory 
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # SonarQube requires a deep clone to analyze blame information
+          # SonarQube requires a deep clone to analyze blame information.
           fetch-depth: 0
 
       - name: Install build dependencies
@@ -26,34 +31,28 @@ jobs:
       - name: Checkout submodules
         run: git submodule update --init --recursive
 
-      - name: Configure CMake
+      - name: Install SonarQube Build Wrapper
+        # This action downloads the build-wrapper executable.
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v5
+
+      - name: Run Build Wrapper
+        # This step configures the project with CMake and then runs the build
+        # command (make) inside the build-wrapper to capture compiler calls.
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake ..
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} make all -j$(nproc)
 
-      - name: Build the project
-        run: |
-          cd build
-          # The 'all' target will build the main components.
-          # You can adjust this to build specific targets if needed.
-          make all -j$(nproc)
-
-      - name: Set up SonarScanner
-        uses: SonarSource/sonar-scanner-cli-action@v2
-        with:
-          # You can specify a specific version of the SonarScanner CLI
-          version: 5.0.1
-
-      - name: Run SonarQube Analysis
+      - name: Run SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
+          # This token is stored in your repository's secrets.
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # SONAR_HOST_URL is needed if you are not using SonarCloud
-          # SONAR_HOST_URL: "https://your-sonarqube-instance.com"
-        run: |
-          sonar-scanner \
-            -Dsonar.projectKey=your_project_key \
-            -Dsonar.organization=your_organization_key \
-            -Dsonar.sources=. \
-            -Dsonar.cfamily.compile-commands=build/compile_commands.json \
+        with:
+          args: >
+            -Dsonar.projectKey=your_project_key
+            -Dsonar.organization=your_organization_key
+            -Dsonar.sources=.
             -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.cfamily.build-wrapper-output=${{ env.BUILD_WRAPPER_OUT_DIR }}
