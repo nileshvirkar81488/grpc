@@ -1,0 +1,59 @@
+name: SonarQube C/C++ Analysis
+
+on:
+  push:
+    branches:
+      - main # Or your default branch
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build_and_analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # SonarQube requires a deep clone to analyze blame information
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf libtool pkg-config cmake clang
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build the project
+        run: |
+          cd build
+          # The 'all' target will build the main components.
+          # You can adjust this to build specific targets if needed.
+          make all -j$(nproc)
+
+      - name: Set up SonarScanner
+        uses: SonarSource/sonar-scanner-cli-action@v2
+        with:
+          # You can specify a specific version of the SonarScanner CLI
+          version: 5.0.1
+
+      - name: Run SonarQube Analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # SONAR_HOST_URL is needed if you are not using SonarCloud
+          # SONAR_HOST_URL: "https://your-sonarqube-instance.com"
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey=your_project_key \
+            -Dsonar.organization=your_organization_key \
+            -Dsonar.sources=. \
+            -Dsonar.cfamily.compile-commands=build/compile_commands.json \
+            -Dsonar.host.url=https://sonarcloud.io
