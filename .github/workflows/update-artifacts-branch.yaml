@@ -3,7 +3,7 @@ name: EXPERIMENTAL -- Update artifacts branch
 on:
   push:
     branches:
-      - master
+      - masterk
 
 permissions:
   contents: write
