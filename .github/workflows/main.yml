@@ -1,4 +1,4 @@
-name: SonarQube C/C++ Analysis
+name: SonarQube C/C++ Analysis 
 
 on:
   push:
